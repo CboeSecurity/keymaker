@@ -30,12 +30,14 @@ gpg/card> q
 import sys
 import pexpect
 import os
+from random import randint
+from getpass import getpass
 
 oldpin = '123456'
 newpin = '123456'
 oldadminpin = '12345678'
-newadminpin = '12345678'
-adminpin = newadminpin
+adminpin = oldadminpin
+newadminpin = str(randint(1,99999999)).zfill(8)
 
 passphrase = os.environ['passphrase']
 keyid = os.environ['KEYID']
@@ -43,9 +45,17 @@ lname = os.environ['lname']
 fname = os.environ['fname']
 email = os.environ['email']
 
+# LOG FILE
+logfile = open('loadkeys.log','w')
+def logtitle(title):
+    logfile.write("\n\n\n##################################################################\n")
+    logfile.write(f"###  {title}\n")
+    logfile.write("##################################################################\n")
+
 # reset the card first
+logtitle("ykman card reset")
 p = pexpect.pty_spawn.spawn('ykman openpgp reset')
-p.logfile = sys.stdout.buffer
+p.logfile = logfile
 ret = p.expect('restore factory settings?')
 p.sendline('y')
 ret = p.expect(['Success!','Error: No YubiKey detected!'])
@@ -54,9 +64,17 @@ if ret == 0:
 else:
     print("Couldn't reset openpgp... is this a bare metal host and is the yubikey present?")
 
+testpin = getpass('Please Enter your *new* PIN: ') 
+testpin2 = getpass('Please Reenter your *new* PIN: ') 
+if testpin == testpin2:
+    newpin = testpin
+
+
+
 # set the new pins
+logtitle("gpg card-edit new pins")
 p = pexpect.pty_spawn.spawn('gpg --card-edit --pinentry-mode loopback')
-p.logfile = sys.stdout.buffer
+p.logfile = logfile
 p.expect('gpg/card>')
 p.sendline('admin')
 p.expect('are allowed')
@@ -82,6 +100,7 @@ p.sendline(newadminpin)
 p.sendline(newadminpin)
 p.expect('PIN changed')
 p.sendline('q')
+adminpin = newadminpin
 
 p.expect('gpg/card>')
 p.sendline('name')
@@ -90,7 +109,7 @@ p.sendline(lname)
 p.expect('Cardholder\'s given name:')
 p.sendline(fname)
 
-p.expect(['gpg/card','Enter passphrase:'])
+ret = p.expect(['gpg/card','Enter passphrase'])
 if ret == 1:
     p.sendline(adminpin)
     p.expect('gpg/card>')
@@ -98,37 +117,39 @@ p.sendline('lang')
 p.expect('Language preferences:')
 p.sendline('en')
 
-p.expect(['gpg/card','Enter passphrase:'])
+ret = p.expect(['gpg/card','Enter passphrase'])
 if ret == 1:
     p.sendline(adminpin)
     p.expect('gpg/card>')
-p.sendline('key 1')
 p.sendline('login')
-p.expect('Login data (account name):')
+p.expect('account name')
 p.sendline(email)
 
 p.expect('gpg/card>')
 p.sendline('q')
 
 # set the touch policies
+logtitle("ykman touch policies to fixed - sig")
 p = pexpect.pty_spawn.spawn('ykman openpgp touch --admin-pin %s -f sig fixed'%(adminpin))
-p.logfile = sys.stdout.buffer
+p.logfile = logfile
 ret = p.expect(['Touch policy successfully set','Error: No YubiKey detected!'])
 if ret == 0:
     print("Successfully Updated a Yubikey touch policy")
 else:
     print("Failed to update a Yubikey touch policy")
 
+logtitle("ykman touch policies to fixed - encrypt")
 p = pexpect.pty_spawn.spawn('ykman openpgp touch --admin-pin %s -f enc fixed'%(adminpin))
-p.logfile = sys.stdout.buffer
+p.logfile = logfile
 ret = p.expect(['Touch policy successfully set','Error: No YubiKey detected!'])
 if ret == 0:
     print("Successfully Updated a Yubikey touch policy")
 else:
     print("Failed to update a Yubikey touch policy")
 
+logtitle("ykman touch policies to fixed - auth")
 p = pexpect.pty_spawn.spawn('ykman openpgp touch --admin-pin %s -f aut fixed'%(adminpin))
-p.logfile = sys.stdout.buffer
+p.logfile = logfile
 ret = p.expect(['Touch policy successfully set','Error: No YubiKey detected!'])
 if ret == 0:
     print("Successfully Updated a Yubikey touch policy")
@@ -163,8 +184,9 @@ Your selection? 1
 '''
 
 # program in the keys
+logtitle("gpg edit-key load keys to yubikey")
 p = pexpect.pty_spawn.spawn('gpg --pinentry-mode loopback --edit-key %s'%(keyid))
-p.logfile = sys.stdout.buffer
+p.logfile = logfile
 p.expect('gpg>')
 p.sendline('key 1')
 p.expect('gpg>')
@@ -180,12 +202,13 @@ if ret==1:
     p.sendline('y')
     p.expect('Enter passphrase:')
 p.sendline(passphrase)
-p.expect('Enter passphrase:')
-p.sendline(adminpin)
-ret == p.expect(['gpg>','SCEA','Enter passphrase:'])
-if ret == 2:
+ret = p.expect(['Enter passphrase:','gpg>'])
+if ret==0:
     p.sendline(adminpin)
-    p.expect('gpg>')
+    ret == p.expect(['Enter passphrase:','gpg>','SCEA'])
+    if ret == 0:
+        p.sendline(adminpin)
+        p.expect('gpg>')
 p.sendline('key 1')
 
 
@@ -195,19 +218,17 @@ p.expect('gpg>')
 p.sendline('keytocard')
 p.expect('Your selection?')
 p.sendline('2')
-# Replace existing key?
-# p.sendline('y')
 ret = p.expect(['Enter passphrase:','Replace existing key?'])
 if ret==1:
     p.sendline('y')
     p.expect('Enter passphrase:')
 p.sendline(passphrase)
-ret == p.expect(['gpg>','SCEA','Enter passphrase:'])
-if ret == 2:
+ret == p.expect(['Enter passphrase:','gpg>','SCEA'])
+if ret == 0:
     p.sendline(adminpin)
-ret == p.expect(['gpg>','SCEA','Enter passphrase:'])
+ret == p.expect(['Enter passphrase:','gpg>','SCEA'])
 ## if NOT gpg, always send the adminpin?... input looks like '\r       \r    '
-if ret == 2:
+if ret == 0:
     p.sendline(adminpin)
     p.expect('gpg>')
 p.sendline('key 2')
@@ -224,13 +245,13 @@ if ret==1:
     p.sendline('y')
     p.expect('Enter passphrase:')
 p.sendline(passphrase)
-ret == p.expect(['gpg>','SCEA','Enter passphrase:'])
-if ret != 2:
+ret = p.expect(['Enter passphrase:','gpg>'])
+if ret==0:
     p.sendline(adminpin)
-ret == p.expect(['gpg>','SCEA','Enter passphrase:'])
-if ret == 2:
-    p.sendline(adminpin)
-    p.expect('gpg>')
+    ret == p.expect(['Enter passphrase:','gpg>','SCEA'])
+    if ret == 0:
+        p.sendline(adminpin)
+        p.expect('gpg>')
 p.sendline('key 3')
 
 

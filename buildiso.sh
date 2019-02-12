@@ -34,10 +34,11 @@ lb config noauto \
 	--architectures amd64 \
 	--linux-flavours amd64 \
 	--debian-installer false \
-	--archive-areas "main contrib non-free" \
+	--archive-areas "main contrib" \
 	--apt-indices false \
 	--memtest none \
 	"${@}"
+#	--archive-areas "main contrib non-free" \
 
 echo "curl gnupg2 gnupg-agent \
      cryptsetup scdaemon pcscd \
@@ -49,6 +50,7 @@ echo "curl gnupg2 gnupg-agent \
      hopenpgp-tools \
      swig libpcsclite-dev \
      python3-pip \
+     python-gnupg at openssl \
      secure-delete " >> config/package-lists/my.list.chroot
 #     yubikey-personalization \
 
@@ -112,11 +114,13 @@ cp $(which ykman) ${cwd}/config/includes.chroot/usr/local/bin
 
 mkdir -p ${cwd}/config/includes.chroot/etc
 cp ../gpg.conf ${cwd}/config/includes.chroot/etc
+cp ../keymaster.pub ${cwd}/config/includes.chroot/etc/keymaster.pub
 
 mkdir -p ${cwd}/config/includes.chroot/usr/local/bin/
 cp ../makekeys.sh ${cwd}/config/includes.chroot/usr/local/bin/makekeys
 cp ../loadkeys.py ${cwd}/config/includes.chroot/usr/local/bin/loadkeys
 cp ../savekeys.sh ${cwd}/config/includes.chroot/usr/local/bin/savekeys
+chmod 755 ${cwd}/config/includes.chroot/usr/local/bin/*keys
 #########################################################
 ##   finalize the live build gpg/ykpers environment    ##
 #########################################################
