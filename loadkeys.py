@@ -48,9 +48,9 @@ email = os.environ['email']
 # LOG FILE
 logfile = open('loadkeys.log','w')
 def logtitle(title):
-    logfile.write("\n\n\n##################################################################\n")
-    logfile.write(f"###  {title}\n")
-    logfile.write("##################################################################\n")
+    logfile.write("\n\n\n##################################################################\n".encode())
+    logfile.write(("###  %s\n"%title).encode())
+    logfile.write("##################################################################\n".encode())
 
 # reset the card first
 logtitle("ykman card reset")

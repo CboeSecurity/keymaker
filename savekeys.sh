@@ -1,7 +1,7 @@
 #!/bin/bash
 
 SENSITIVE_UUID="1709-56B9"
-PUBLIC_UUID="
+PUBLIC_UUID=""
 
 
 

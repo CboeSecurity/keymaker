@@ -6,18 +6,25 @@ ykpers_ver="ykpers-1.19.0"
 set -e
 
 apt install -y netselect-apt live-build
+
+owd=$(pwd)
 #########################################################
 ##  Optimize downloads from fastest mirror site        ##
 #########################################################
 if [ ! -d /etc/live ]; then
     mkdir /etc/live
 fi
-mirror=$(netselect-apt 2>/dev/null|grep -m1 "://"|sed "s/[ 	]*//g")
+
+if [ ! -f .distro_mirror ]; then
+    mirror=$(netselect-apt 2>/dev/null|grep -m1 "://"|sed "s/[ 	]*//g")
+    echo "${mirror}" > .distro_mirror
+else
+    mirror=$(cat .distro_mirror)
+fi
 echo """LB_MIRROR_BOOTSTRAP="$mirror"
 LB_MIRROR_CHROOT_SECURITY="http://security.debian.org/"
 LB_MIRROR_CHROOT_BACKPORTS="$mirror"
 """ > /etc/live/build.conf
-
 
 #########################################################
 ##  Prepare live-build environment                     ##
@@ -27,7 +34,7 @@ if [ ! -d live ]; then
 fi
 cd live
 cwd=$(pwd)
-lb clean
+#lb clean
 
 lb config noauto \
 	--mode debian \
@@ -113,17 +120,18 @@ cp $(which ykman) ${cwd}/config/includes.chroot/usr/local/bin
 #########################################################
 
 mkdir -p ${cwd}/config/includes.chroot/etc
-cp ../gpg.conf ${cwd}/config/includes.chroot/etc
-cp ../keymaster.pub ${cwd}/config/includes.chroot/etc/keymaster.pub
+cp -L ${owd}/gpg.conf ${cwd}/config/includes.chroot/etc
+cp -L ${owd}/keymaster.pub ${cwd}/config/includes.chroot/etc/keymaster.pub
 
 mkdir -p ${cwd}/config/includes.chroot/usr/local/bin/
-cp ../makekeys.sh ${cwd}/config/includes.chroot/usr/local/bin/makekeys
-cp ../loadkeys.py ${cwd}/config/includes.chroot/usr/local/bin/loadkeys
-cp ../savekeys.sh ${cwd}/config/includes.chroot/usr/local/bin/savekeys
+cp -L ${owd}/makekeys.sh ${cwd}/config/includes.chroot/usr/local/bin/makekeys
+cp -L ${owd}/loadkeys.py ${cwd}/config/includes.chroot/usr/local/bin/loadkeys
+cp -L ${owd}/savekeys.sh ${cwd}/config/includes.chroot/usr/local/bin/savekeys
 chmod 755 ${cwd}/config/includes.chroot/usr/local/bin/*keys
 #########################################################
 ##   finalize the live build gpg/ykpers environment    ##
 #########################################################
 lb build
 
-cp live-image-amd64.hybrid.iso /shared/VMShared/
+cp live-image-amd64.hybrid.iso /shared/
+echo "Done!!!"

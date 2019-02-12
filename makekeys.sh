@@ -7,7 +7,7 @@ if [ $# -ne 3 ]; then
 else
     fname=$1
     lname=$2
-    name="${lname}, ${fname}"
+    name="${lname},${fname}"
     email=$3
 fi
 keylength=4096
@@ -80,7 +80,7 @@ BKROOT="gpgbackup-${name}"
 BACKUPDIR="${BKROOT}.d"
 TARBALL="${BKROOT}.tgz"
 GPGBALL="${BKROOT}.tgz.enc"
-gpg -a --export ${email} > keys_public.gpg
+gpg -a --export ${email} > "$(date +%F)-${name}-key.pub"
 cp -arf $GNUPGHOME "${BACKUPDIR}"
 gpg -a --export ${email} > "${BACKUPDIR}"/keys_public.gpg
 
@@ -90,6 +90,10 @@ echo "export KEYID=\"${KEYID}\"" >> ${env_vars_file}
 echo "export fname=${fname}" >> ${env_vars_file}
 echo "export lname=${lname}" >> ${env_vars_file}
 echo "export email=${email}" >> ${env_vars_file}
+echo "export TARBALL=${TARBALL}" >> ${env_vars_file}
+echo "export BACKUPDIR=${BACKUPDIR}" >> ${env_vars_file}
+echo "export GPGBALL=${GPGBALL}" >> ${env_vars_file}
+echo "export adminpin=${email}" >> ${env_vars_file}
 
 gpg --export $KEYID | hokey lint
 
