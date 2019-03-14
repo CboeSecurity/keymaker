@@ -27,36 +27,64 @@ Your selection? q
 gpg/card> q 
 '''
 
+import re
 import sys
 import pexpect
 import os
 from random import randint
 from getpass import getpass
+from time import sleep
+import datetime
 
 oldpin = '123456'
 newpin = '123456'
 oldadminpin = '12345678'
 adminpin = oldadminpin
 newadminpin = str(randint(1,99999999)).zfill(8)
+cardserial = None
 
-passphrase = os.environ['passphrase']
-keyid = os.environ['KEYID']
-lname = os.environ['lname']
-fname = os.environ['fname']
-email = os.environ['email']
+try: 
+    passphrase = os.environ['passphrase']
+    keyid = os.environ['KEYID']
+    lname = os.environ['lname']
+    fname = os.environ['fname']
+    email = os.environ['email']
+    backupdir = os.environ['BACKUPDIR']
+except KeyError:
+    print("Could not find requirement environment variables...")
+    print("Please source the key-generated environment variables: '. keygen.env'")
+    exit(1)
+
+
+
 
 # LOG FILE
-logfile = open('loadkeys.log','w')
+logfile = open('%s/loadkeys.log'%(backupdir),'wb')
 def logtitle(title):
     logfile.write("\n\n\n##################################################################\n".encode())
     logfile.write(("###  %s\n"%title).encode())
     logfile.write("##################################################################\n".encode())
 
+
+logtitle("TRNG check: infnoise")
+p = pexpect.pty_spawn.spawn('infnoise -l')
+p.logfile = logfile
+ret = p.expect('ID:')
+ret = p.read()
+if (re.sub(".*Serial:[ ]?[']?",'',str(ret.strip())) != ""):
+    print("Please disconnect your Infnoise TRNG, as it prevents Yubikey programming")
+    exit(0)
+
+#cat >> /offline/"${lname},${fname}.csv" <<EOF
+#"${email}","${lname}","${fname}",${KEYID},${adminpin},${serialnum},${date}
+
+logtitle("New Admin Pin Code")
+logfile.write(("AdminPin:%s"%newadminpin).encode())
 # reset the card first
 logtitle("ykman card reset")
 p = pexpect.pty_spawn.spawn('ykman openpgp reset')
 p.logfile = logfile
-ret = p.expect('restore factory settings?')
+ret = p.expect('restore factory settings')
 p.sendline('y')
 ret = p.expect(['Success!','Error: No YubiKey detected!'])
 if ret == 0:
@@ -69,10 +97,36 @@ testpin2 = getpass('Please Reenter your *new* PIN: ')
 if testpin == testpin2:
     newpin = testpin
 
-
+logtitle("gpg card-status")
+print("Checking card status...")
+# we run this twice... not a typo.... 
+p = pexpect.pty_spawn.spawn('gpg --card-status')
+p.logfile = logfile
+p.expect(['Serial number \.+: ','card not available'])
+if ret == 1:
+    print("No Yubikey/OpenPGP card found, exiting")
+    exit(0)
+elif ret == 0:
+    ret = p.read()
+    cardserial = re.sub("\\\\r.*",'',str(ret))
+    cardserial = re.sub("[^[0-9]]*",'',cardserial)
+    print("Found Yubikey/OpenPGP card (#%s)"%(cardserial))
+sleep(0.2)
+# we run this twice... not a typo....!!! 
+p = pexpect.pty_spawn.spawn('gpg --card-status')
+p.logfile = logfile
+p.expect(['Serial','card not available'])
+if ret == 1:
+    print("No Yubikey/OpenPGP card found, exiting")
+    exit(0)
+elif ret == 0:
+    ret = p.read()
+    #cardserial = re.sub(".*Serial number \.+: ",'',str(ret.strip()))
+    #print("Found Yubikey/OpenPGP card (#%s)"%(cardserial))
 
 # set the new pins
 logtitle("gpg card-edit new pins")
+print("Programming new pin codes into Yubikey/OpenPGP card")
 p = pexpect.pty_spawn.spawn('gpg --card-edit --pinentry-mode loopback')
 p.logfile = logfile
 p.expect('gpg/card>')
@@ -103,6 +157,7 @@ p.sendline('q')
 adminpin = newadminpin
 
 p.expect('gpg/card>')
+print("Programming user identity (%s, %s: %s)."%(lname,fname,email))
 p.sendline('name')
 p.expect('Cardholder\'s surname:')
 p.sendline(lname)
@@ -129,6 +184,7 @@ p.expect('gpg/card>')
 p.sendline('q')
 
 # set the touch policies
+print("Hardening touch policies")
 logtitle("ykman touch policies to fixed - sig")
 p = pexpect.pty_spawn.spawn('ykman openpgp touch --admin-pin %s -f sig fixed'%(adminpin))
 p.logfile = logfile
@@ -184,6 +240,7 @@ Your selection? 1
 '''
 
 # program in the keys
+print("Saving the Private key into Yubikey/Openpgp card")
 logtitle("gpg edit-key load keys to yubikey")
 p = pexpect.pty_spawn.spawn('gpg --pinentry-mode loopback --edit-key %s'%(keyid))
 p.logfile = logfile
@@ -210,6 +267,7 @@ if ret==0:
         p.sendline(adminpin)
         p.expect('gpg>')
 p.sendline('key 1')
+print("   key 1... Signing")
 
 
 p.expect('gpg>')
@@ -232,6 +290,7 @@ if ret == 0:
     p.sendline(adminpin)
     p.expect('gpg>')
 p.sendline('key 2')
+print("   key 2... Encryption")
 
 
 p.expect('gpg>')
@@ -253,10 +312,15 @@ if ret==0:
         p.sendline(adminpin)
         p.expect('gpg>')
 p.sendline('key 3')
+print("   key 3... Authentication")
 
 
 p.expect('gpg>')
 p.sendline('q')
 p.expect('Save changes')
 p.sendline('y')
+with open("%s/%s,%s.csv"%(backupdir,lname,fname),'a+') as fw:
+    strdate = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S%Z')
+    fw.write('"%s","%s","%s",%s,%s,%s,%s\n'%(email,lname,fname,keyid,adminpin,cardserial,strdate))
+print("Changes saved, done!")
 

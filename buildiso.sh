@@ -27,15 +27,28 @@ LB_MIRROR_CHROOT_BACKPORTS="$mirror"
 """ > /etc/live/build.conf
 
 #########################################################
-##  Prepare live-build environment                     ##
+##  Clear previous live-build environment              ##
 #########################################################
 if [ ! -d live ]; then
    mkdir live
 fi
 cd live
 cwd=$(pwd)
-#lb clean
+lb clean
 
+# clean out any cached copies of our configs...
+if [ -f ./live/chroot/etc/rc.local ]; then
+    rm -f ./live/chroot/etc/rc.local
+fi
+
+# clean out any cached copies of our scripts...
+if [ -d live/chroot/usr/local/bin ]; then
+    rm -f ./live/chroot/usr/local/bin/*
+fi
+
+#########################################################
+##  Prepare live-build environment                     ##
+#########################################################
 lb config noauto \
 	--mode debian \
 	--architectures amd64 \
@@ -44,6 +57,8 @@ lb config noauto \
 	--archive-areas "main contrib" \
 	--apt-indices false \
 	--memtest none \
+	--bootappend-live "boot=live toram noprompt quiet silent username=root --"\
+	--bootloader syslinux \	
 	"${@}"
 #	--archive-areas "main contrib non-free" \
 
@@ -58,13 +73,53 @@ echo "curl gnupg2 gnupg-agent \
      swig libpcsclite-dev \
      python3-pip \
      python-gnupg at openssl \
+     util-linux \
+     tmux vim \
      secure-delete " >> config/package-lists/my.list.chroot
+#     infnoise \
 #     yubikey-personalization \
+
+#########################################################
+##  Support the Infinite Noise TRNG                    ##
+#########################################################
+if [ ! -f 13-37.org-code.asc ]; then 
+wget -O 13-37.org-code.asc https://13-37.org/files/pubkey.gpg 
+gpg --import-options import-show --dry-run --import < 13-37.org-code.asc
+apt-key add 13-37.org-code.asc
+echo "deb http://repo.13-37.org/ stable main" > /etc/apt/sources.list.d/infnoise.list
+fi
+
+apt update
+cp 13-37.org-code.asc config/archives/infnoise.key.chroot
+echo "deb http://repo.13-37.org/ stable main" > config/archives/infnoise.list.chroot 
+echo "libftdi1 infnoise" > config/package-lists/infnoise.list.binary
+mkdir -p ${cwd}/config/includes.chroot/etc
+echo "#!/bin/bash" > ${cwd}/config/includes.chroot/etc/rc.local
+echo "dpkg -i /lib/live/mount/medium/pool/main/libf/libftdi/*deb /lib/live/mount/medium/pool/main/i/infnoise/*deb" >> ${cwd}/config/includes.chroot/etc/rc.local
+echo 'if [ "$(infnoise -l |grep -o Serial:.*|wc -c)" -gt 10 ]; then echo "infnoise plugged in";systemctl disable haveged; systemctl stop haveged;fi' >> ${cwd}/config/includes.chroot/etc/rc.local
+echo "exit 0" >> ${cwd}/config/includes.chroot/etc/rc.local
+chmod 755 ${cwd}/config/includes.chroot/etc/rc.local
+
+#########################################################
+##  Hack in rc.local support			       ##
+#########################################################
+mkdir -p ${cwd}/config/includes.chroot/etc/systemd/system
+echo """[Unit]
+Description=/etc/rc.local compatibility
+
+[Service]
+Type=oneshot
+ExecStart=/etc/rc.local
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+""" > ${cwd}/config/includes.chroot/etc/systemd/system/rc-local.service
 
 #########################################################
 ##  Yubikey library download, compile, install to live ##
 #########################################################
-apt install -y gcc make
+apt install -y gcc make libssl-dev
 if [ -f ${libyubikey_ver} ];
 then
    rm -rf ${libyubikey_ver}
@@ -119,7 +174,6 @@ cp $(which ykman) ${cwd}/config/includes.chroot/usr/local/bin
 ##  Copy the CboeSec scripts used to generate gpg keys ##
 #########################################################
 
-mkdir -p ${cwd}/config/includes.chroot/etc
 cp -L ${owd}/gpg.conf ${cwd}/config/includes.chroot/etc
 cp -L ${owd}/keymaster.pub ${cwd}/config/includes.chroot/etc/keymaster.pub
 
