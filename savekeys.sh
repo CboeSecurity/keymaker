@@ -9,8 +9,9 @@ rm -rf "${BACKUPDIR}"/S*
 
 tar zcf "${TARBALL}" "${BACKUPDIR}"
 gpg --import /etc/keymaster.pub
+masteremail=$(gpg /etc/keymaster.pub 2>/dev/null |grep uid|sed "s/.*<\(.*\)>.*/\1/")
 echo "$(gpg --list-keys --fingerprint \
-	| grep masterkey -B1 | head -1 \
+	| grep ${masteremail} -B1 | head -1 \
 	| sed "s/.*\= \(.*\)/\1/"|tr -d '[:space:]' \
 	):6:" | gpg --import-ownertrust;
 
@@ -39,11 +40,13 @@ echo -n "Copying Sensitive data now..."
 adminpin=$(cat ${BACKUPDIR}/loadkeys.log|grep AdminPin:|sed "s/AdminPin://")
 serialnum=$(gpg --card-status|grep Serial|sed "s/Serial.*\.\.\.: //")
 date=$(date "+%F %T%Z")
-cat >> /offline/"${lname},${fname}.csv" <<EOF
-"${email}","${lname}","${fname}",${KEYID},${adminpin},${serialnum},${date}
-EOF
-tail -n1 /offline/"${lname},${fname}.csv" >> /offline/allusers.csv
-gpg -e -r masterkey@cboe.com -o /offline/"${GPGBALL}" "${TARBALL}"
+#cat >> /offline/"${lname},${fname}.csv" <<EOF
+#"${email}","${lname}","${fname}",${KEYID},${adminpin},${serialnum},${date}
+#EOF
+cat "${BACKUPDIR}/${lname},${fname}.csv" >> /offline/allusers.csv 
+cat "${BACKUPDIR}/${lname},${fname}.csv" >> "/offline/${lname},${fname}.csv"
+#tail -n1 /offline/"${lname},${fname}.csv" >> /offline/allusers.csv
+gpg -e -r ${masteremail} -o /offline/"${GPGBALL}" "${TARBALL}"
 echo "Done"
 umount /offline
 

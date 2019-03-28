@@ -65,8 +65,9 @@ lb config noauto \
 echo "curl gnupg2 gnupg-agent \
      cryptsetup scdaemon pcscd \
      libusb-dev libusb-1.0-0 libusb-1.0-0-dev \
+     usbutils dieharder \
      python3-pexpect \
-     python
+     python \
      dirmngr \
      haveged rng-tools \
      hopenpgp-tools \
@@ -97,8 +98,41 @@ mkdir -p ${cwd}/config/includes.chroot/etc
 echo "#!/bin/bash" > ${cwd}/config/includes.chroot/etc/rc.local
 echo "dpkg -i /lib/live/mount/medium/pool/main/libf/libftdi/*deb /lib/live/mount/medium/pool/main/i/infnoise/*deb" >> ${cwd}/config/includes.chroot/etc/rc.local
 echo 'if [ "$(infnoise -l |grep -o Serial:.*|wc -c)" -gt 10 ]; then echo "infnoise plugged in";systemctl disable haveged; systemctl stop haveged;fi' >> ${cwd}/config/includes.chroot/etc/rc.local
-echo "exit 0" >> ${cwd}/config/includes.chroot/etc/rc.local
 chmod 755 ${cwd}/config/includes.chroot/etc/rc.local
+
+#########################################################
+##  Support the OneRNG TRNG                            ##
+#########################################################
+apt install rng-tools python-gnupg
+ONERNGVER="3.6-1"
+ONERNGSHA256="a9ccf7b04ee317dbfc91518542301e2d60ebe205d38e80563f29aac7cd845ccb"
+if [ ! -f onerng_${ONERNGVER}_all.deb ]; then
+  wget https://github.com/OneRNG/onerng.github.io/blob/master/sw/onerng_${ONERNGVER}_all.deb?raw=true -O onerng_${ONERNGVER}_all.deb
+  CHKHASH=$(shasum -a 256 onerng_${ONERNGVER}_all.deb|sed "s/ .*//")
+  if [ "${CHKHASH}" != "${ONERNGSHA256}" ]; then
+    echo "ONERNG TRNG Download Hash is invalid!!!"
+    exit 1
+  fi
+fi
+
+if [ ! -d ${cwd}/config/includes.chroot/etc ]; then 
+   mkdir -p ${cwd}/config/includes.chroot/etc
+fi
+
+if [ ! -d ${cwd}/config/includes.chroot/usr/share ]; then 
+   mkdir -p ${cwd}/config/includes.chroot/usr/share
+fi
+cp onerng_${ONERNGVER}_all.deb ${cwd}/config/includes.chroot/usr/share
+if [ ! -f ${cwd}/config/includes.chroot/etc/rc.local ]; then
+echo "#!/bin/bash" > ${cwd}/config/includes.chroot/etc/rc.local
+fi 
+echo "dpkg -i /usr/share/onerng*deb" >> ${cwd}/config/includes.chroot/etc/rc.local
+echo 'if [ "$(lsusb|grep OpenMoko|sed "s/.*ID \([0-9a-z:]\{9\}\).*/\\1/")" == "1d50:6086" ]; then echo "OneRNG plugged in"; systemctl disable haveged; systemctl stop haveged; fi' >> ${cwd}/config/includes.chroot/etc/rc.local
+
+#########################################################
+##  End in rc.local				       ##
+#########################################################
+echo "exit 0" >> ${cwd}/config/includes.chroot/etc/rc.local
 
 #########################################################
 ##  Hack in rc.local support			       ##

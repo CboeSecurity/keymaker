@@ -321,6 +321,6 @@ p.expect('Save changes')
 p.sendline('y')
 with open("%s/%s,%s.csv"%(backupdir,lname,fname),'a+') as fw:
     strdate = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S%Z')
-    fw.write('"%s","%s","%s",%s,%s,%s,%s\n'%(email,lname,fname,keyid,adminpin,cardserial,strdate))
+    fw.write('"%s","%s","%s","%s","%s","%s","%s"\n'%(email,lname,fname,keyid,adminpin,cardserial,strdate))
 print("Changes saved, done!")
 
