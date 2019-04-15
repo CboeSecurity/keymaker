@@ -92,6 +92,43 @@ if ret == 0:
 else:
     print("Couldn't reset openpgp... is this a bare metal host and is the yubikey present?")
 
+# set the touch policies
+print("Hardening touch policies")
+logtitle("ykman touch policies to fixed - sig")
+p = pexpect.pty_spawn.spawn('ykman openpgp touch --admin-pin %s -f sig fixed'%(adminpin))
+p.logfile = logfile
+ret = p.expect(['Touch policy successfully set','Error: No YubiKey detected!'])
+if ret == 0:
+    print("Successfully Updated a Yubikey touch policy")
+else:
+    print("Failed to update a Yubikey touch policy")
+
+logtitle("ykman touch policies to fixed - encrypt")
+p = pexpect.pty_spawn.spawn('ykman openpgp touch --admin-pin %s -f enc fixed'%(adminpin))
+p.logfile = logfile
+ret = p.expect(['Touch policy successfully set','Error: No YubiKey detected!'])
+if ret == 0:
+    print("Successfully Updated a Yubikey touch policy")
+else:
+    print("Failed to update a Yubikey touch policy")
+
+logtitle("ykman touch policies to fixed - auth")
+p = pexpect.pty_spawn.spawn('ykman openpgp touch --admin-pin %s -f aut fixed'%(adminpin))
+p.logfile = logfile
+ret = p.expect(['Touch policy successfully set','Error: No YubiKey detected!'])
+if ret == 0:
+    print("Successfully Updated a Yubikey touch policy")
+else:
+    print("Failed to update a Yubikey touch policy")
+
+'''
+ykman openpgp touch --admin-pin 12345678 -f sig on
+ykman openpgp touch --admin-pin 12345678 -f enc on
+ykman openpgp touch --admin-pin 12345678 -f aut on
+'''
+
+
+
 testpin = getpass('Please Enter your *new* PIN: ') 
 testpin2 = getpass('Please Reenter your *new* PIN: ') 
 if testpin == testpin2:
@@ -183,40 +220,6 @@ p.sendline(email)
 p.expect('gpg/card>')
 p.sendline('q')
 
-# set the touch policies
-print("Hardening touch policies")
-logtitle("ykman touch policies to fixed - sig")
-p = pexpect.pty_spawn.spawn('ykman openpgp touch --admin-pin %s -f sig fixed'%(adminpin))
-p.logfile = logfile
-ret = p.expect(['Touch policy successfully set','Error: No YubiKey detected!'])
-if ret == 0:
-    print("Successfully Updated a Yubikey touch policy")
-else:
-    print("Failed to update a Yubikey touch policy")
-
-logtitle("ykman touch policies to fixed - encrypt")
-p = pexpect.pty_spawn.spawn('ykman openpgp touch --admin-pin %s -f enc fixed'%(adminpin))
-p.logfile = logfile
-ret = p.expect(['Touch policy successfully set','Error: No YubiKey detected!'])
-if ret == 0:
-    print("Successfully Updated a Yubikey touch policy")
-else:
-    print("Failed to update a Yubikey touch policy")
-
-logtitle("ykman touch policies to fixed - auth")
-p = pexpect.pty_spawn.spawn('ykman openpgp touch --admin-pin %s -f aut fixed'%(adminpin))
-p.logfile = logfile
-ret = p.expect(['Touch policy successfully set','Error: No YubiKey detected!'])
-if ret == 0:
-    print("Successfully Updated a Yubikey touch policy")
-else:
-    print("Failed to update a Yubikey touch policy")
-
-'''
-ykman openpgp touch --admin-pin 12345678 -f sig on
-ykman openpgp touch --admin-pin 12345678 -f enc on
-ykman openpgp touch --admin-pin 12345678 -f aut on
-'''
 '''
 gpg> key 1
 
